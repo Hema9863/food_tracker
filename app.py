@@ -104,6 +104,58 @@ FOODS = [
 ("Walnuts","Snack",4,"piece",105,2.5,2.2,10.5,1.1),
 ("Chia seeds","Add-on",1,"tbsp",58,2,5,3.7,4.1),
 ("Flax seeds","Add-on",1,"tbsp",55,1.9,3,4.3,2.8),
+# Andhra / Telangana favourites and home-style dishes
+("Andhra pesarattu","Breakfast",2,"piece",260,14,38,5,8),
+("Upma pesarattu","Breakfast",2,"piece",330,15,48,8,8),
+("Andhra karam dosa","Breakfast",1,"piece",230,5,32,8,3),
+("Andhra rava dosa","Breakfast",1,"piece",210,5,34,6,2),
+("Punugulu","Snack",6,"piece",220,5,30,9,3),
+("Garelu / Andhra vada","Snack",2,"piece",280,8,32,13,4),
+("Mirapakaya bajji","Snack",2,"piece",190,4,24,9,3),
+("Andhra upma","Breakfast",1,"bowl",240,6,36,8,4),
+("Andhra tomato pappu","Side dish",1,"bowl",190,10,27,5,7),
+("Palakura pappu","Side dish",1,"bowl",180,10,25,5,7),
+("Dosakaya pappu","Side dish",1,"bowl",175,10,26,4,6),
+("Beerakaya pappu","Side dish",1,"bowl",175,10,25,4,6),
+("Gongura pappu","Side dish",1,"bowl",190,10,25,5,7),
+("Mamidikaya pappu","Side dish",1,"bowl",190,10,28,5,6),
+("Mudda pappu","Side dish",1,"bowl",170,10,27,3,7),
+("Andhra sambar","Side dish",1,"bowl",130,6,20,3,5),
+("Andhra rasam / charu","Side dish",1,"bowl",55,2,9,1,1),
+("Gongura pachadi","Side dish",2,"tbsp",80,2,4,6,2),
+("Gongura chutney","Side dish",2,"tbsp",75,2,4,5,2),
+("Tomato pachadi","Side dish",2,"tbsp",55,1,6,3,1),
+("Peanut pachadi","Side dish",2,"tbsp",110,4,4,9,2),
+("Coconut pachadi","Side dish",2,"tbsp",90,1,3,8,1),
+("Allam pachadi","Side dish",2,"tbsp",65,1,8,3,1),
+("Beerakaya pachadi","Side dish",2,"tbsp",60,2,6,3,2),
+("Dondakaya fry","Side dish",1,"bowl",150,3,16,8,5),
+("Bendakaya fry","Side dish",1,"bowl",170,4,18,9,6),
+("Gutti vankaya curry","Side dish",1,"bowl",230,5,18,15,6),
+("Vankaya pulusu","Side dish",1,"bowl",150,3,18,7,5),
+("Dosakaya curry","Side dish",1,"bowl",120,3,12,6,3),
+("Beerakaya curry","Side dish",1,"bowl",120,3,13,6,4),
+("Sorakaya curry","Side dish",1,"bowl",110,3,12,5,3),
+("Palak paneer Andhra style","Protein",1,"bowl",290,17,12,20,4),
+("Chicken fry Andhra style","Protein",1,"bowl",300,27,8,18,2),
+("Kodi kura / Andhra chicken curry","Protein",1,"bowl",280,25,9,16,2),
+("Chicken 65","Protein",100,"g",280,20,12,17,1),
+("Andhra chilli chicken","Protein",1,"bowl",320,26,15,18,2),
+("Chepala pulusu / fish curry","Protein",1,"bowl",230,23,8,12,2),
+("Royyala iguru / prawn curry","Protein",1,"bowl",250,25,9,13,2),
+("Andhra egg curry","Protein",1,"bowl",240,14,8,16,2),
+("Egg bhurji","Protein",2,"egg",190,14,3,13,1),
+("Boiled egg whites","Protein",3,"piece",51,10.8,0.7,0.2,0),
+("Egg white omelette","Protein",3,"piece",90,12,2,3,0),
+("Chicken breast tikka","Protein",100,"g",180,31,3,5,0),
+("Grilled fish","Protein",100,"g",170,26,0,7,0),
+("Prawns, cooked","Protein",100,"g",100,24,0,1.5,0),
+("Soy chunks, cooked","Protein",100,"g",140,16,10,1,6),
+("Sprouted moong salad","Protein",1,"bowl",150,10,25,2,7),
+("Moong chilla","Breakfast",2,"piece",220,14,30,5,6),
+("Besan chilla","Breakfast",2,"piece",240,12,28,8,6),
+("Mixed dal dosa","Breakfast",2,"piece",270,13,38,6,7),
+("Peanut chikki","Snack",1,"piece",150,5,14,8,2),
 ]
 
 def get_client():
@@ -149,8 +201,8 @@ with st.sidebar:
 
 st.markdown('<div class="hero"><h1>🥗 My Food Tracker</h1><p>Log South Indian meals, check nutrition, review history and track weight.</p></div>',unsafe_allow_html=True)
 
-tabs=st.tabs(["🍽️ Today","📅 History","⚖️ Weight","🥘 Food list"])
-today_tab,history_tab,weight_tab,foods_tab=tabs
+tabs=st.tabs(["🍽️ Today","💡 Protein ideas","📅 History","⚖️ Weight","🥘 Food list"])
+today_tab,ideas_tab,history_tab,weight_tab,foods_tab=tabs
 
 def food_df():
     # built-in foods plus user's custom foods
@@ -188,37 +240,85 @@ with today_tab:
     selected_date=st.date_input("Date",date.today(),format="DD/MM/YYYY",key="today_date")
     foods=food_df()
     meal=st.radio("Meal",["Breakfast","Lunch","Dinner","Snacks"],horizontal=True)
-    col_food,col_qty=st.columns([2.4,1])
-    typed=col_food.text_input("Select or type food",placeholder="Search or type e.g. ragi dosa",key="food_input")
-    matches=foods[foods.name.str.contains(typed,case=False,na=False)].head(12) if typed.strip() else foods.head(12)
+
+    # One robust input: type to search, or type a brand-new food name.
+    typed=st.text_input(
+        "Food",
+        placeholder="Type a food — e.g. egg, dosa, chicken, paneer…",
+        key="food_input",
+        help="Start typing and matching foods will appear instantly. You can also type a new food name."
+    )
+    query=typed.strip().lower()
     chosen=None
-    if typed.strip():
-        exact=foods[foods.name.str.lower()==typed.strip().lower()]
+
+    if query:
+        # Rank exact/prefix matches first, then substring matches. This keeps search useful on mobile.
+        names=foods["name"].astype(str)
+        low=names.str.lower()
+        starts=foods[low.str.startswith(query,na=False)]
+        contains=foods[low.str.contains(query,regex=False,na=False) & ~low.str.startswith(query,na=False)]
+        matches=pd.concat([starts,contains]).drop_duplicates(subset=["name"]).head(15)
+
+        if not matches.empty:
+            st.caption(f"Suggestions for **{typed.strip()}**")
+            # Buttons are the selectable suggestions; no Streamlit selectbox is used.
+            for i,(_,row) in enumerate(matches.iterrows()):
+                c1,c2=st.columns([5,1.2])
+                label=f"{row['name']}  ·  {row['serving_qty']:g} {row['unit']}  ·  {row['protein']:.1f}g protein"
+                if c1.button(label,use_container_width=True,key=f"food_suggestion_{i}_{row['name']}"):
+                    st.session_state["selected_food"]=row["name"]
+                    st.rerun()
+
+        # If the user types an exact built-in/custom food name, select it automatically.
+        exact=foods[low==query]
         if not exact.empty:
             chosen=exact.iloc[0].to_dict()
-        elif not matches.empty:
-            chosen_name=col_food.selectbox("Matching foods",matches.name.tolist(),label_visibility="collapsed",key="food_match")
-            chosen=foods[foods.name==chosen_name].iloc[0].to_dict()
-    else:
-        chosen_name=col_food.selectbox("Popular foods",matches.name.tolist(),label_visibility="collapsed",key="popular_food")
-        chosen=foods[foods.name==chosen_name].iloc[0].to_dict() if not foods.empty else None
+        elif st.session_state.get("selected_food"):
+            selected_name=st.session_state["selected_food"]
+            selected=foods[foods.name==selected_name]
+            if not selected.empty and selected_name.lower() in low.tolist():
+                chosen=selected.iloc[0].to_dict()
+    elif st.session_state.get("selected_food"):
+        selected=foods[foods.name==st.session_state["selected_food"]]
+        if not selected.empty:
+            chosen=selected.iloc[0].to_dict()
 
-    manual_new = bool(typed.strip() and chosen is None and matches.empty)
-    if manual_new:
-        st.info(f"**{typed.strip()}** is not in the food list yet. Enter the nutrition for the quantity you are logging.")
+    if chosen:
+        st.success(f"Selected: **{chosen['name']}** · standard {chosen['serving_qty']:g} {chosen['unit']}")
+        col_qty,col_info=st.columns([1.2,2.8])
+        qty=col_qty.number_input(
+            f"Quantity ({chosen['unit']})",
+            min_value=0.1,
+            value=float(chosen["serving_qty"]),
+            step=1.0 if chosen["unit"] in ["piece","tbsp","egg"] else 0.5,
+            key=f"qty_{chosen['name']}_{meal}"
+        )
+        factor=qty/float(chosen["serving_qty"])
+        cal=float(chosen["calories"])*factor
+        pro=float(chosen["protein"])*factor
+        col_info.caption(f"Approx. **{cal:.0f} kcal · {pro:.1f} g protein** for {qty:g} {chosen['unit']}.")
+        if st.button(f"➕ Add to {meal}",type="primary",use_container_width=True):
+            try:
+                add_food_log(selected_date,meal,chosen["name"],qty,chosen["unit"],chosen)
+                st.session_state["food_input"]=""
+                st.session_state.pop("selected_food",None)
+                st.success(f"Added {chosen['name']} to {meal}.")
+                st.rerun()
+            except Exception:
+                st.error("Could not save the food. Please check the Supabase table setup in SETUP.md.")
+    elif query and not matches.empty:
+        st.info("Tap one of the suggestions above to select it.")
+    elif query and matches.empty:
+        st.info(f"**{typed.strip()}** isn't in the database yet. You can add it below as a new food.")
         mc1,mc2,mc3=st.columns(3)
         new_qty=mc1.number_input("Quantity",min_value=0.1,value=1.0,step=0.5,key="new_food_qty")
-        new_unit=mc2.selectbox("Unit",["serving","piece","bowl","g","ml","glass","cup"],key="new_food_unit")
+        new_unit=mc2.selectbox("Unit",["serving","piece","bowl","g","ml","glass","cup","egg"],key="new_food_unit")
         new_cal=mc3.number_input("Calories",min_value=0.0,value=0.0,step=10.0,key="new_food_cal")
         new_pro=st.number_input("Protein (g)",min_value=0.0,value=0.0,step=0.5,key="new_food_pro")
         new_carbs=st.number_input("Carbs (g)",min_value=0.0,value=0.0,step=1.0,key="new_food_carbs")
         new_fat=st.number_input("Fat (g)",min_value=0.0,value=0.0,step=0.5,key="new_food_fat")
         new_fiber=st.number_input("Fiber (g)",min_value=0.0,value=0.0,step=0.5,key="new_food_fiber")
         save_new=st.checkbox("Save this food for next time",value=True,key="save_new_food")
-        if new_cal>0:
-            c1,c2=st.columns(2)
-            c1.metric("Calories",f"{new_cal:.0f} kcal")
-            c2.metric("Protein",f"{new_pro:.1f} g")
         if st.button(f"➕ Add to {meal}",type="primary",use_container_width=True,key="add_manual_new"):
             if new_cal<=0:
                 st.error("Enter calories to add this food.")
@@ -227,32 +327,16 @@ with today_tab:
                 try:
                     add_food_log(selected_date,meal,typed.strip(),new_qty,new_unit,manual_base)
                     if save_new:
-                        sb.table("custom_foods").insert({
+                        sb.table("custom_foods").upsert({
                             "user_email":user_email,"name":typed.strip(),"category":"Other",
                             "serving_qty":new_qty,"unit":new_unit,"calories":new_cal,
                             "protein":new_pro,"carbs":new_carbs,"fat":new_fat,"fiber":new_fiber
-                        }).execute()
+                        },on_conflict="user_email,name").execute()
+                    st.session_state["food_input"]=""
                     st.success(f"Added {typed.strip()} to {meal}.")
                     st.rerun()
                 except Exception:
-                    st.error("Could not save this food. It may already exist in your saved foods.")
-
-    if chosen:
-        qty=col_qty.number_input(f"Quantity ({chosen['unit']})",min_value=0.1,value=float(chosen["serving_qty"]),step=1.0 if chosen["unit"] in ["piece","tbsp"] else 0.5,key=f"qty_{chosen['name']}_{meal}")
-        factor=qty/float(chosen["serving_qty"])
-        cal=float(chosen["calories"])*factor
-        pro=float(chosen["protein"])*factor
-        m1,m2=st.columns(2)
-        m1.metric("Calories",f"{cal:.0f} kcal")
-        m2.metric("Protein",f"{pro:.1f} g")
-        if st.button(f"➕ Add to {meal}",type="primary",use_container_width=True):
-            try:
-                add_food_log(selected_date,meal,chosen["name"],qty,chosen["unit"],chosen)
-                st.session_state["food_input"]=""
-                st.success(f"Added {chosen['name']} to {meal}.")
-                st.rerun()
-            except Exception as e:
-                st.error("Could not save the food. Please check the Supabase table setup in SETUP.md.")
+                    st.error("Could not save this food. Check your Supabase tables.")
 
     st.divider()
     day=log_rows(selected_date,selected_date)
@@ -285,6 +369,27 @@ with today_tab:
         x.metric("Daily calories",f"{day.calories.sum():.0f} kcal")
         y.metric("Daily protein",f"{day.protein.sum():.1f} g")
         z.metric("Daily fiber",f"{day.fiber.sum():.1f} g")
+
+with ideas_tab:
+    st.subheader("💡 Protein ideas")
+    st.caption("Quick South Indian and everyday ideas to increase protein without making meals complicated.")
+    idea_groups={
+        "🥚 Eggs": ["Egg, boiled — ~6.3 g protein each","Egg white omelette — ~12 g protein per 3 whites","Andhra egg curry — ~14 g protein per bowl"],
+        "🍗 Non-veg": ["Chicken breast — ~31 g protein/100 g","Andhra chicken curry — ~25 g protein/bowl","Fish — ~24 g protein/100 g","Prawns — ~24 g protein/100 g"],
+        "🌱 Vegetarian": ["Pesarattu — ~14 g protein per 2","Moong chilla — ~14 g protein per 2","Mixed dal dosa — ~13 g protein per 2","Tofu — ~15 g protein/100 g","Paneer — ~18 g protein/100 g"],
+        "🥣 South Indian add-ons": ["Sambar — ~6 g protein/bowl","Toor dal — ~10 g protein/bowl","Chana sundal — ~9 g protein/bowl","Peanut sundal — ~9 g protein/bowl","Curd — ~5 g protein/bowl"],
+    }
+    for title,items in idea_groups.items():
+        with st.container(border=True):
+            st.markdown(f"### {title}")
+            for item in items:
+                st.markdown(f"- {item}")
+    st.divider()
+    st.markdown("#### ⚡ Easy meal combinations")
+    st.write("**Breakfast:** 2 pesarattu + curd → protein-focused start")
+    st.write("**Lunch:** rice + sambar + chicken/fish or dal + curd → balanced meal")
+    st.write("**Snack:** boiled eggs or chana sundal + fruit")
+    st.write("**Dinner:** chapati/ragi roti + paneer/tofu/chicken + vegetable curry")
 
 with history_tab:
     st.subheader("📅 Food history")
