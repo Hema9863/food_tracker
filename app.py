@@ -241,49 +241,27 @@ with today_tab:
     foods=food_df()
     meal=st.radio("Meal",["Breakfast","Lunch","Dinner","Snacks"],horizontal=True)
 
-    # One robust input: type to search, or type a brand-new food name.
-    typed=st.text_input(
+    # Single food input with native type-ahead suggestions.
+    # Streamlit filters the list as the user types, so typing "egg" immediately
+    # narrows the dropdown to egg-related foods. accept_new_options=True also
+    # lets the user enter a completely new food name.
+    food_names=foods["name"].astype(str).tolist()
+    selected_name=st.selectbox(
         "Food",
-        placeholder="Type a food — e.g. egg, dosa, chicken, paneer…",
-        key="food_input",
-        help="Start typing and matching foods will appear instantly. You can also type a new food name."
+        options=food_names,
+        index=None,
+        placeholder="Start typing: egg, dosa, chicken, paneer…",
+        accept_new_options=True,
+        key="food_picker",
+        help="Type to search. Matching foods appear immediately. You can also enter a new food name."
     )
-    query=typed.strip().lower()
+
     chosen=None
-    matches=pd.DataFrame(columns=foods.columns)
-
-    # Dynamic type-ahead: suggestions are recalculated on every keystroke and
-    # shown immediately below the SAME food input. Exact/prefix matches win.
-    if query:
-        names=foods["name"].astype(str)
-        low=names.str.lower()
-        exact=foods[low==query]
-        starts=foods[low.str.startswith(query,na=False) & (low!=query)]
-        contains=foods[low.str.contains(query,regex=False,na=False) & ~low.str.startswith(query,na=False)]
-        matches=pd.concat([exact,starts,contains]).drop_duplicates(subset=["name"]).head(12)
-
-        if not matches.empty:
-            st.caption(f"🔎 Matching foods for **{typed.strip()}**")
-            # Compact suggestion rows act like a type-ahead dropdown.
-            for i,(_,row) in enumerate(matches.iterrows()):
-                label=f"{row['name']}  ·  {row['serving_qty']:g} {row['unit']}  ·  {row['protein']:.1f}g protein"
-                if st.button(label,use_container_width=True,key=f"food_suggestion_{i}_{row['name']}"):
-                    st.session_state["selected_food"]=row["name"]
-                    st.session_state["food_input"]=row["name"]
-                    st.rerun()
-
-        # Exact typing also selects the food, so users can simply type a complete name.
+    if selected_name:
+        selected_text=str(selected_name).strip()
+        exact=foods[foods["name"].str.lower()==selected_text.lower()]
         if not exact.empty:
             chosen=exact.iloc[0].to_dict()
-        elif st.session_state.get("selected_food"):
-            selected_name=st.session_state["selected_food"]
-            selected=foods[foods.name==selected_name]
-            if not selected.empty and selected_name.lower() in low.tolist():
-                chosen=selected.iloc[0].to_dict()
-    elif st.session_state.get("selected_food"):
-        selected=foods[foods.name==st.session_state["selected_food"]]
-        if not selected.empty:
-            chosen=selected.iloc[0].to_dict()
 
     if chosen:
         st.success(f"Selected: **{chosen['name']}** · standard {chosen['serving_qty']:g} {chosen['unit']}")
@@ -302,16 +280,16 @@ with today_tab:
         if st.button(f"➕ Add to {meal}",type="primary",use_container_width=True):
             try:
                 add_food_log(selected_date,meal,chosen["name"],qty,chosen["unit"],chosen)
-                st.session_state["food_input"]=""
-                st.session_state.pop("selected_food",None)
+                st.session_state.pop("food_picker",None)
                 st.success(f"Added {chosen['name']} to {meal}.")
                 st.rerun()
             except Exception:
                 st.error("Could not save the food. Please check the Supabase table setup in SETUP.md.")
-    elif query and not matches.empty:
-        st.info("Tap a matching food above, or keep typing to narrow the suggestions.")
-    elif query and matches.empty:
-        st.info(f"**{typed.strip()}** isn't in the database yet. You can add it below as a new food.")
+    elif selected_name:
+        # New food entered through the same input. Keep the quantity/nutrition
+        # entry available rather than forcing the user into another selector.
+        typed=str(selected_name).strip()
+        st.info(f"**{typed}** isn't in the database yet. Add its nutrition below, or save it for next time.")
         mc1,mc2,mc3=st.columns(3)
         new_qty=mc1.number_input("Quantity",min_value=0.1,value=1.0,step=0.5,key="new_food_qty")
         new_unit=mc2.selectbox("Unit",["serving","piece","bowl","g","ml","glass","cup","egg"],key="new_food_unit")
@@ -327,15 +305,15 @@ with today_tab:
             else:
                 manual_base={"serving_qty":new_qty,"calories":new_cal,"protein":new_pro,"carbs":new_carbs,"fat":new_fat,"fiber":new_fiber}
                 try:
-                    add_food_log(selected_date,meal,typed.strip(),new_qty,new_unit,manual_base)
+                    add_food_log(selected_date,meal,typed,new_qty,new_unit,manual_base)
                     if save_new:
                         sb.table("custom_foods").upsert({
-                            "user_email":user_email,"name":typed.strip(),"category":"Other",
+                            "user_email":user_email,"name":typed,"category":"Other",
                             "serving_qty":new_qty,"unit":new_unit,"calories":new_cal,
                             "protein":new_pro,"carbs":new_carbs,"fat":new_fat,"fiber":new_fiber
                         },on_conflict="user_email,name").execute()
-                    st.session_state["food_input"]=""
-                    st.success(f"Added {typed.strip()} to {meal}.")
+                    st.session_state.pop("food_picker",None)
+                    st.success(f"Added {typed} to {meal}.")
                     st.rerun()
                 except Exception:
                     st.error("Could not save this food. Check your Supabase tables.")
