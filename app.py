@@ -250,27 +250,29 @@ with today_tab:
     )
     query=typed.strip().lower()
     chosen=None
+    matches=pd.DataFrame(columns=foods.columns)
 
+    # Dynamic type-ahead: suggestions are recalculated on every keystroke and
+    # shown immediately below the SAME food input. Exact/prefix matches win.
     if query:
-        # Rank exact/prefix matches first, then substring matches. This keeps search useful on mobile.
         names=foods["name"].astype(str)
         low=names.str.lower()
-        starts=foods[low.str.startswith(query,na=False)]
+        exact=foods[low==query]
+        starts=foods[low.str.startswith(query,na=False) & (low!=query)]
         contains=foods[low.str.contains(query,regex=False,na=False) & ~low.str.startswith(query,na=False)]
-        matches=pd.concat([starts,contains]).drop_duplicates(subset=["name"]).head(15)
+        matches=pd.concat([exact,starts,contains]).drop_duplicates(subset=["name"]).head(12)
 
         if not matches.empty:
-            st.caption(f"Suggestions for **{typed.strip()}**")
-            # Buttons are the selectable suggestions; no Streamlit selectbox is used.
+            st.caption(f"🔎 Matching foods for **{typed.strip()}**")
+            # Compact suggestion rows act like a type-ahead dropdown.
             for i,(_,row) in enumerate(matches.iterrows()):
-                c1,c2=st.columns([5,1.2])
                 label=f"{row['name']}  ·  {row['serving_qty']:g} {row['unit']}  ·  {row['protein']:.1f}g protein"
-                if c1.button(label,use_container_width=True,key=f"food_suggestion_{i}_{row['name']}"):
+                if st.button(label,use_container_width=True,key=f"food_suggestion_{i}_{row['name']}"):
                     st.session_state["selected_food"]=row["name"]
+                    st.session_state["food_input"]=row["name"]
                     st.rerun()
 
-        # If the user types an exact built-in/custom food name, select it automatically.
-        exact=foods[low==query]
+        # Exact typing also selects the food, so users can simply type a complete name.
         if not exact.empty:
             chosen=exact.iloc[0].to_dict()
         elif st.session_state.get("selected_food"):
@@ -307,7 +309,7 @@ with today_tab:
             except Exception:
                 st.error("Could not save the food. Please check the Supabase table setup in SETUP.md.")
     elif query and not matches.empty:
-        st.info("Tap one of the suggestions above to select it.")
+        st.info("Tap a matching food above, or keep typing to narrow the suggestions.")
     elif query and matches.empty:
         st.info(f"**{typed.strip()}** isn't in the database yet. You can add it below as a new food.")
         mc1,mc2,mc3=st.columns(3)
