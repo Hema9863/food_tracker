@@ -113,80 +113,39 @@ def get_client():
         return None
     return create_client(url, key)
 
-def auth_screen(sb):
-    st.markdown('<div class="hero"><h1>🥗 My Food Tracker</h1><p>Your meals, nutrition and weight — all in one place.</p></div>',unsafe_allow_html=True)
-    login_tab, signup_tab = st.tabs(["Log in","Create account"])
-    with login_tab:
-        with st.form("login_form"):
-            email=st.text_input("Email",key="login_email")
-            password=st.text_input("Password",type="password",key="login_password")
-            submitted=st.form_submit_button("Log in",use_container_width=True)
-        if submitted:
-            try:
-                result=sb.auth.sign_in_with_password({"email":email.strip(),"password":password})
-                st.session_state["access_token"]=result.session.access_token
-                st.session_state["refresh_token"]=result.session.refresh_token
-                st.session_state["user_id"]=result.user.id
-                st.session_state["user_email"]=result.user.email
-                st.rerun()
-            except Exception as e:
-                st.error("Login failed. Check your email and password, and confirm your email if requested.")
-    with signup_tab:
-        with st.form("signup_form"):
-            email=st.text_input("Email address",key="signup_email")
-            password=st.text_input("Create password (at least 8 characters)",type="password",key="signup_password")
-            password2=st.text_input("Confirm password",type="password",key="signup_password2")
-            submitted=st.form_submit_button("Create account",use_container_width=True)
-        if submitted:
-            if password != password2:
-                st.error("The passwords do not match.")
-            elif len(password)<8:
-                st.error("Please use at least 8 characters for your password.")
-            else:
-                try:
-                    result=sb.auth.sign_up({"email":email.strip(),"password":password})
-                    if result.session:
-                        st.session_state["access_token"]=result.session.access_token
-                        st.session_state["refresh_token"]=result.session.refresh_token
-                        st.session_state["user_id"]=result.user.id
-                        st.session_state["user_email"]=result.user.email
-                        st.rerun()
-                    st.success("Account created. Check your email for the confirmation link, then log in.")
-                except Exception:
-                    st.error("Could not create the account. The email may already be registered, or confirmation may be required.")
-    st.caption("Each account has its own meal log and weight history.")
+def profile_screen():
+    st.markdown('<div class="hero"><h1>🥗 My Food Tracker</h1><p>Enter an email address to open your personal food profile.</p></div>', unsafe_allow_html=True)
+    with st.form("profile_form"):
+        email=st.text_input("Email address", placeholder="you@example.com", key="profile_email")
+        submitted=st.form_submit_button("Continue", use_container_width=True)
+    if submitted:
+        email=email.strip().lower()
+        if "@" not in email or "." not in email.split("@")[-1]:
+            st.error("Please enter a valid email address.")
+        else:
+            st.session_state["user_email"]=email
+            st.rerun()
+    st.caption("No password, signup or email verification is required.")
+    st.warning("This is a simple profile selector, not secure authentication. Anyone who enters another person's email address could see that profile's data.")
 
+if not st.session_state.get("user_email"):
+    profile_screen()
+    st.stop()
+
+user_email=st.session_state["user_email"].strip().lower()
 sb=get_client()
 if sb is None:
     st.error("Cloud setup is not complete yet. Follow SETUP.md to create a free Supabase project and add its URL and anon key to Streamlit secrets.")
     st.stop()
 
-if not st.session_state.get("access_token"):
-    auth_screen(sb)
-    st.stop()
-
-# Set Supabase session from Streamlit session state.
-try:
-    sb.auth.set_session(st.session_state["access_token"], st.session_state["refresh_token"])
-    auth_user=sb.auth.get_user().user
-    user_id=auth_user.id
-    user_email=auth_user.email
-except Exception:
-    st.session_state.pop("access_token",None)
-    st.session_state.pop("refresh_token",None)
-    st.session_state.pop("user_id",None)
-    st.rerun()
-
 with st.sidebar:
     st.markdown("### 🥗 My Food Tracker")
     st.write(user_email)
     if st.button("Log out",use_container_width=True):
-        try: sb.auth.sign_out()
-        except Exception: pass
-        for k in ["access_token","refresh_token","user_id","user_email","selected_food"]:
+        for k in ["user_email","selected_food"]:
             st.session_state.pop(k,None)
         st.rerun()
-    st.caption("Your entries are private to your account.")
+    st.caption("Profile data is separated by the email address you entered.")
 
 st.markdown('<div class="hero"><h1>🥗 My Food Tracker</h1><p>Log South Indian meals, check nutrition, review history and track weight.</p></div>',unsafe_allow_html=True)
 
@@ -197,7 +156,7 @@ def food_df():
     # built-in foods plus user's custom foods
     base=pd.DataFrame(FOODS,columns=["name","category","serving_qty","unit","calories","protein","carbs","fat","fiber"])
     try:
-        custom=sb.table("custom_foods").select("*").eq("user_id",user_id).execute().data or []
+        custom=sb.table("custom_foods").select("*").eq("user_email",user_email).execute().data or []
         if custom:
             cf=pd.DataFrame(custom)
             base=pd.concat([base,cf[["name","category","serving_qty","unit","calories","protein","carbs","fat","fiber"]]],ignore_index=True)
@@ -206,7 +165,7 @@ def food_df():
     return base.drop_duplicates(subset=["name"],keep="last").sort_values("name").reset_index(drop=True)
 
 def log_rows(start=None,end=None):
-    q=sb.table("food_logs").select("*").eq("user_id",user_id)
+    q=sb.table("food_logs").select("*").eq("user_email",user_email)
     if start: q=q.gte("log_date",str(start))
     if end: q=q.lte("log_date",str(end))
     data=q.order("log_date",desc=True).order("created_at",desc=True).execute().data or []
@@ -215,7 +174,7 @@ def log_rows(start=None,end=None):
 def add_food_log(log_date,meal,food_name,qty,unit,base,custom=False):
     factor=float(qty)/float(base["serving_qty"])
     payload={
-        "user_id":user_id,"log_date":str(log_date),"meal":meal,"food_name":food_name,
+        "user_email":user_email,"log_date":str(log_date),"meal":meal,"food_name":food_name,
         "quantity":float(qty),"unit":unit,
         "calories":round(float(base["calories"])*factor,2),
         "protein":round(float(base["protein"])*factor,2),
@@ -269,7 +228,7 @@ with today_tab:
                     add_food_log(selected_date,meal,typed.strip(),new_qty,new_unit,manual_base)
                     if save_new:
                         sb.table("custom_foods").insert({
-                            "user_id":user_id,"name":typed.strip(),"category":"Other",
+                            "user_email":user_email,"name":typed.strip(),"category":"Other",
                             "serving_qty":new_qty,"unit":new_unit,"calories":new_cal,
                             "protein":new_pro,"carbs":new_carbs,"fat":new_fat,"fiber":new_fiber
                         }).execute()
@@ -315,7 +274,7 @@ with today_tab:
                     b.write(f"{row.calories:.0f} kcal")
                     c.write(f"{row.protein:.1f} g")
                     if d.button("🗑️",key=f"del_{row.id}"):
-                        sb.table("food_logs").delete().eq("id",row.id).eq("user_id",user_id).execute()
+                        sb.table("food_logs").delete().eq("id",row.id).eq("user_email",user_email).execute()
                         st.rerun()
                 st.markdown("---")
                 x,y=st.columns(2)
@@ -361,14 +320,14 @@ with weight_tab:
     if save_weight:
         try:
             sb.table("weight_logs").upsert({
-                "user_id":user_id,"weight_date":str(weight_date),"weight_kg":float(weight_kg),"note":note.strip()
-            },on_conflict="user_id,weight_date").execute()
+                "user_email":user_email,"weight_date":str(weight_date),"weight_kg":float(weight_kg),"note":note.strip()
+            },on_conflict="user_email,weight_date").execute()
             st.success("Weight saved.")
             st.rerun()
         except Exception:
             st.error("Could not save weight. Check the weight_logs table setup in SETUP.md.")
     try:
-        weights=sb.table("weight_logs").select("*").eq("user_id",user_id).order("weight_date").execute().data or []
+        weights=sb.table("weight_logs").select("*").eq("user_email",user_email).order("weight_date").execute().data or []
         wdf=pd.DataFrame(weights)
         if not wdf.empty:
             wdf["weight_date"]=pd.to_datetime(wdf["weight_date"])
@@ -407,7 +366,7 @@ with foods_tab:
         else:
             try:
                 sb.table("custom_foods").insert({
-                    "user_id":user_id,"name":custom_name.strip(),"category":category,
+                    "user_email":user_email,"name":custom_name.strip(),"category":category,
                     "serving_qty":serving_qty,"unit":unit,"calories":calories,
                     "protein":protein,"carbs":carbs,"fat":fat,"fiber":fiber
                 }).execute()
